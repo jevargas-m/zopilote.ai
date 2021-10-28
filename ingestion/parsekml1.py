@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup as Soup
 
 from icecream import ic
 
-DATABASE_FILENAME = "../tracks.db"
+DATABASE_FILENAME = "../tracks2.db"
 COMMIT_AFTER_N_PLACEMARKS = 1000
 
 if not os.path.isfile(DATABASE_FILENAME):
@@ -59,7 +59,7 @@ def parse_kmlfile(filename, track_id):
                 # this flags a flight point
                 if pm.Point.coordinates is not None:
                     alt_mode = pm.Point.find('altitudeMode').contents[0]
-                    alt_mode = alt_mode if alt_mode else "unknown"
+                    alt_mode = 1 if alt_mode == 'absolute' else 0
                     coords_str = pm.Point.find('coordinates').contents[0]
                     coords = coords_str.split(",")
                     lon = coords[0]
