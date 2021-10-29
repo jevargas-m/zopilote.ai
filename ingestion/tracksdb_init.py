@@ -1,5 +1,3 @@
-import os
-import sqlite3
 import dbconn
 
 con = dbconn.connect()
@@ -19,12 +17,11 @@ cursor.execute(sql)
 sql = '''
   create table if not exists rawtracks(
     track_id INTEGER,
-    time_begin TEXT,
-    time_end TEXT,
+    time_begin TIMESTAMP,
+    time_end TIMESTAMP,
     altitude INTEGER,
     altitude_mode INTEGER,
-    lat REAL,
-    lon REAL
+    coords GEOMETRY
   )
 '''
 cursor.execute(sql)
@@ -32,9 +29,9 @@ cursor.execute(sql)
 sql = '''
   create table if not exists files_ingested(
     filename TEXT UNIQUE,
-    track_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    track_id SERIAL PRIMARY KEY,
     ingestion_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    parsed_correct BIT DEFAULT 0
+    parsed_correct BOOLEAN DEFAULT FALSE
   )
 '''
 cursor.execute(sql)

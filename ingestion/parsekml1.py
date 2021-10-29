@@ -17,33 +17,30 @@ kml type 1 in which flight data follows this pattern:
 """
 
 import os
-import sqlite3
 import glob
 from bs4 import BeautifulSoup as Soup
 
 from icecream import ic
+import dbconn
 
-DATABASE_FILENAME = "../tracks2.db"
+con = dbconn.connect()
+
 COMMIT_AFTER_N_PLACEMARKS = 1000
 
-if not os.path.isfile(DATABASE_FILENAME):
-    print("ERROR: No db file present")
-    exit()
 
-con = sqlite3.connect(DATABASE_FILENAME)
 cursor = con.cursor()
 
 
 def register_file_in_db(filename):
     sql = """ INSERT INTO files_ingested (filename) \
-                        VALUES (?)
+                        VALUES (%s)
     """
-    cursor.execute(sql, [filename])
+    cursor.execute(sql, (filename,))
     con.commit()
 
-    sql = """ SELECT track_id FROM files_ingested WHERE filename = ?
+    sql = """ SELECT track_id FROM files_ingested WHERE filename = %s
     """
-    cursor.execute(sql, [filename])
+    cursor.execute(sql, (filename,))
     return cursor.fetchone()[0]
 
 def parse_kmlfile(filename, track_id):
@@ -65,15 +62,16 @@ def parse_kmlfile(filename, track_id):
                     lon = coords[0]
                     lat = coords[1]
                     alt = coords[2]
+                    coord_geom = f'POINT({lon} {lat})'
                     time_begin = pm.TimeSpan.find('begin').contents[0]
                     time_end = pm.TimeSpan.find('end').contents[0]
 
                     sql = """
                         INSERT INTO rawtracks (track_id, time_begin, time_end, \
-                            altitude, altitude_mode, lat, lon) \
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                            altitude, altitude_mode, coords) \
+                        VALUES (%s, %s, %s, %s, %s, ST_GeometryFromText(%s))
                     """
-                    values = [track_id, time_begin, time_end, alt, alt_mode, lat, lon]
+                    values = (track_id, time_begin, time_end, alt, alt_mode, coord_geom)
                     cursor.execute(sql, values)
                 else:
                     print('WARNING: Point has timespan but not coords')
@@ -89,7 +87,7 @@ def parse_kmlfile(filename, track_id):
     return True
 
 
-for filename in glob.glob('rawdata/kmlstaging/*.kml'):
+for filename in glob.glob('ingestion/rawdata/kmlstaging/*.kml'):
     ic(filename)
     track_id = register_file_in_db(filename.split("/")[-1])
     ic(track_id)
@@ -97,12 +95,12 @@ for filename in glob.glob('rawdata/kmlstaging/*.kml'):
     if is_parsed:
         cursor.execute("""
             UPDATE files_ingested 
-            SET parsed_correct = 1 
-            WHERE track_id = ?
-        """, [track_id])
-        os.remove(filename)
+            SET parsed_correct = TRUE 
+            WHERE track_id = %s
+        """, (track_id,))
+ #       os.remove(filename)
     else:
-        cursor.execute("DELETE FROM rawtracks WHERE track_id = ?", [track_id])
+        cursor.execute("DELETE FROM rawtracks WHERE track_id = %s", (track_id,))
     con.commit()
 
     print(filename + ' ** DONE **')
