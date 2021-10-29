@@ -19,9 +19,9 @@ sql = '''
     track_id INTEGER,
     time_begin TIMESTAMP,
     time_end TIMESTAMP,
-    altitude INTEGER,
-    altitude_mode INTEGER,
-    coords GEOMETRY
+    altitude SMALLINT,
+    altitude_mode SMALLINT,
+    coords GEOMETRY(POINT)
   )
 '''
 cursor.execute(sql)

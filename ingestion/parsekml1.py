@@ -1,5 +1,5 @@
 """
-Parse all kml files in staging directory.
+Parse all kml files in staging directory.  Once files are parsed get deleted
 This script must run on ingestion directory and looks for files  in
     rawdata/kmlstaging/*.kml
 
@@ -32,14 +32,10 @@ cursor = con.cursor()
 
 
 def register_file_in_db(filename):
-    sql = """ INSERT INTO files_ingested (filename) \
-                        VALUES (%s)
-    """
+    sql = """ INSERT INTO files_ingested (filename) VALUES (%s) """
     cursor.execute(sql, (filename,))
     con.commit()
-
-    sql = """ SELECT track_id FROM files_ingested WHERE filename = %s
-    """
+    sql = """ SELECT track_id FROM files_ingested WHERE filename = %s """
     cursor.execute(sql, (filename,))
     return cursor.fetchone()[0]
 
@@ -89,8 +85,13 @@ def parse_kmlfile(filename, track_id):
 
 for filename in glob.glob('ingestion/rawdata/kmlstaging/*.kml'):
     ic(filename)
-    track_id = register_file_in_db(filename.split("/")[-1])
-    ic(track_id)
+    try: 
+        track_id = register_file_in_db(filename.split("/")[-1])
+        ic(track_id)
+    except Exception as e:
+        print(f'WARNING: {e}')
+        con.commit()
+        continue
     is_parsed = parse_kmlfile(filename, track_id)
     if is_parsed:
         cursor.execute("""
@@ -98,7 +99,7 @@ for filename in glob.glob('ingestion/rawdata/kmlstaging/*.kml'):
             SET parsed_correct = TRUE 
             WHERE track_id = %s
         """, (track_id,))
- #       os.remove(filename)
+        os.remove(filename)
     else:
         cursor.execute("DELETE FROM rawtracks WHERE track_id = %s", (track_id,))
     con.commit()
