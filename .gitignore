@@ -147,3 +147,4 @@ ingestion/rawdata/
 
 *.db
 configs
+config.ini

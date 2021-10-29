@@ -1,14 +1,10 @@
 import os
 import sqlite3
+import dbconn
 
-DATABASE_FILENAME = "tracks2.db"
-
-if not os.path.isfile(DATABASE_FILENAME):
-    print("ERROR: No db file present")
-    exit()
-
-con = sqlite3.connect(DATABASE_FILENAME)
+con = dbconn.connect()
 cursor = con.cursor()
+
 
 sql = """
   DROP TABLE IF EXISTS rawtracks
