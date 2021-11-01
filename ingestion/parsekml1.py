@@ -23,11 +23,9 @@ from bs4 import BeautifulSoup as Soup
 from icecream import ic
 import dbconn
 
-con = dbconn.connect()
-
 COMMIT_AFTER_N_PLACEMARKS = 1000
 
-
+con = dbconn.connect()
 cursor = con.cursor()
 
 
@@ -40,8 +38,11 @@ def register_file_in_db(filename):
     return cursor.fetchone()[0]
 
 def parse_kmlfile(filename, track_id):
-    with open(filename) as data:
-        kml_soup = Soup(data, 'lxml-xml')
+    try:
+        with open(filename) as data:
+            kml_soup = Soup(data, 'lxml-xml')
+    except:
+        return False
 
     placemarks = kml_soup.find_all('Placemark')
     error_counter = 0
@@ -81,9 +82,8 @@ def parse_kmlfile(filename, track_id):
             con.commit()
     con.commit()
     return True
-
-
-for filename in glob.glob('ingestion/rawdata/kmlstaging/*.kml'):
+    
+for filename in glob.glob('ingestion/rawdata/*.zip'):
     ic(filename)
     try: 
         track_id = register_file_in_db(filename.split("/")[-1])
@@ -92,7 +92,8 @@ for filename in glob.glob('ingestion/rawdata/kmlstaging/*.kml'):
         print(f'WARNING: {e}')
         con.commit()
         continue
-    is_parsed = parse_kmlfile(filename, track_id)
+    os.system(f'unzip -o {filename} "*.kml"')
+    is_parsed = parse_kmlfile('doc.kml', track_id)
     if is_parsed:
         cursor.execute("""
             UPDATE files_ingested 
@@ -100,10 +101,9 @@ for filename in glob.glob('ingestion/rawdata/kmlstaging/*.kml'):
             WHERE track_id = %s
         """, (track_id,))
         os.remove(filename)
+        os.remove('doc.kml')
     else:
         cursor.execute("DELETE FROM rawtracks WHERE track_id = %s", (track_id,))
     con.commit()
 
     print(filename + ' ** DONE **')
-        
-
