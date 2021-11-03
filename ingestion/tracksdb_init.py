@@ -21,7 +21,7 @@ sql = '''
     time_end TIMESTAMP,
     altitude SMALLINT,
     altitude_mode SMALLINT,
-    coords GEOMETRY(POINT)
+    coords GEOMETRY(POINT, 4326)
   )
 '''
 cursor.execute(sql)

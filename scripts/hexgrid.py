@@ -49,7 +49,7 @@ def initialize_table_in_db(con):
     sql = """
         CREATE TABLE hexgrid (
             hexagon_id SERIAL PRIMARY KEY,
-            hexagon geometry
+            hexagon geometry(Polygon, 4326)
         )
     """
     cursor.execute(sql)
@@ -96,6 +96,7 @@ for row in hexgrid:
         store_hexagon_in_db(cursor, hexagon)
         if counter % COMMIT_EVERY_UPDATES == 0:
             con.commit()
+        counter += 1
 con.commit()
 
 
