@@ -4,7 +4,7 @@ from hexgrid h
 with track as (
 select st_setsrid(st_makeline(coords), 4326) as g 
 from rawtracks r 
-where track_id = 127
+where track_id = 1
 )
 select g
 from track
@@ -16,7 +16,7 @@ where st_crosses(t.g, st_setsrid(hexagon, 4326))
 with track as (
 		select st_setsrid(st_makeline(coords), 4326) as g 
 		from rawtracks r 
-		where track_id = 127
+		where track_id = 1
 	 ), hex_on_flight as (
 		select hexagon_id, st_setsrid(hexagon, 4326) 
 		from hexgrid h, track t
@@ -124,6 +124,9 @@ SELECT startTime,
        endTime, 
        ST_MakeLine(geom_array) AS line,
        endTime - startTime as duration,
+       ST_Z(st_startpoint( ST_MakeLine(geom_array))) as alt_entry,
+       ST_Z(st_endpoint(( ST_MakeLine(geom_array)))) as alt_exit,
+       - ST_Z(st_startpoint( ST_MakeLine(geom_array))) + ST_Z(st_endpoint(( ST_MakeLine(geom_array)))) as alt_gain,
        st_geogfromtext('POLYGON ((-100.13388595389931 19.057000000000002, -100.13388595389931 19.0638, -100.13977492664505 19.0672, -100.14566389939078 19.0638, -100.14566389939078 19.057000000000002, -100.13977492664505 19.053600000000003, -100.13388595389931 19.057000000000002))') as hex
 FROM (
     -- Aggregate the points based on sequence group
@@ -146,3 +149,72 @@ FROM (
         ) pointsInside
     GROUP BY grp
     ) pointGroup;
+   
+   
+with orderPoints as (   
+		SELECT 
+			ST_M(coords) as captureTime,	
+			coords as location,
+			turning,
+       		ROW_NUMBER() OVER (ORDER BY ST_M(coords)) AS seq 
+		FROM rawtracks_m rm
+), pointsInside as (
+        SELECT 
+        	*, 
+            seq - ROW_NUMBER() OVER (ORDER BY captureTime) AS grp
+        FROM orderPoints
+        WHERE ST_Intersects(location,st_geogfromtext('POLYGON ((-100.13388595389931 19.057000000000002, -100.13388595389931 19.0638, -100.13977492664505 19.0672, -100.14566389939078 19.0638, -100.14566389939078 19.057000000000002, -100.13977492664505 19.053600000000003, -100.13388595389931 19.057000000000002))')) 
+), pointGroup as (
+		SELECT 
+		   min(captureTime) AS startTime, 
+           max(CaptureTime) AS endTime, 
+           array_agg(location) AS geom_array,
+           count(*) as n_points,
+           count(CASE WHEN turning = TRUE THEN 1 END) as n_turning,
+           grp
+		from pointsInside
+		GROUP BY grp
+), crossings as (
+		select
+			1.0 * n_turning / n_points as turning_ratio,
+			startTime, 
+		    endTime, 
+		    ST_MakeLine(geom_array) AS line,
+		    endTime - startTime as duration,
+		    ST_Z(st_startpoint( ST_MakeLine(geom_array))) as alt_entry,
+		    ST_Z(st_endpoint(( ST_MakeLine(geom_array)))) as alt_exit,
+		    st_geogfromtext('POLYGON ((-100.13388595389931 19.057000000000002, -100.13388595389931 19.0638, -100.13977492664505 19.0672, -100.14566389939078 19.0638, -100.14566389939078 19.057000000000002, -100.13977492664505 19.053600000000003, -100.13388595389931 19.057000000000002))') as hex
+		from pointGroup
+), crossings_with_deltas as (
+	  	select 
+		    *,
+			alt_exit - alt_entry as alt_gain
+		from crossings
+)
+select
+	*,
+	alt_gain / duration as vertical_speed
+from
+	crossings_with_deltas
+where duration > 100 and alt_gain > 0
+	
+
+with orderPoints as (   
+		SELECT 
+			ST_M(coords) as captureTime,	
+			coords as location,
+			turning,
+       		ROW_NUMBER() OVER (ORDER BY ST_M(coords)) AS seq 
+		FROM rawtracks_m rm
+), pointsInside as (
+        SELECT 
+        	*, 
+            seq - ROW_NUMBER() OVER (ORDER BY captureTime) AS grp
+        FROM orderPoints
+        WHERE ST_Intersects(location,st_geogfromtext('POLYGON ((-100.13388595389931 19.057000000000002, -100.13388595389931 19.0638, -100.13977492664505 19.0672, -100.14566389939078 19.0638, -100.14566389939078 19.057000000000002, -100.13977492664505 19.053600000000003, -100.13388595389931 19.057000000000002))')) 
+)
+select *
+from pointsInside
+
+
+
