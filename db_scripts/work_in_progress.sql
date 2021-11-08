@@ -199,6 +199,40 @@ from
 where duration > 100 and alt_gain > 0
 	
 
+with 
+	hexi as (
+	select hexagon
+	from hexgrid h
+	where hexagon_id = 1118),	
+orderPoints as (   
+		SELECT 
+			ST_M(coords) as captureTime,	
+			coords as location,
+			turning,
+       		ROW_NUMBER() OVER (ORDER BY ST_M(coords)) AS seq 
+		FROM rawtracks_m rm
+), pointsInside as (
+        SELECT 
+        	*, 
+            seq - ROW_NUMBER() OVER (ORDER BY captureTime) AS grp
+        FROM orderPoints
+        WHERE ST_Intersects(location, (select hexagon from hexgrid h2 where hexagon_id = 1118))        
+)
+select *
+from pointsInside
+
+
+select st_extrude(
+	 	st_geomfromtext('POLYGON ((-100.13388595389931 19.057000000000002, -100.13388595389931 19.0638, -100.13977492664505 19.0672, -100.14566389939078 19.0638, -100.14566389939078 19.057000000000002, -100.13977492664505 19.053600000000003, -100.13388595389931 19.057000000000002))')
+, 0, 0, 300)
+	 
+	 
+select ST_Extrude(st_force3d((select hexagon from hexgrid h2 where hexagon_id = 1118), 1500),0,0,100);
+
+(select hexagon from hexgrid h2 where hexagon_id = 1118)
+
+
+   
 with orderPoints as (   
 		SELECT 
 			ST_M(coords) as captureTime,	
@@ -211,10 +245,43 @@ with orderPoints as (
         	*, 
             seq - ROW_NUMBER() OVER (ORDER BY captureTime) AS grp
         FROM orderPoints
-        WHERE ST_Intersects(location,st_geogfromtext('POLYGON ((-100.13388595389931 19.057000000000002, -100.13388595389931 19.0638, -100.13977492664505 19.0672, -100.14566389939078 19.0638, -100.14566389939078 19.057000000000002, -100.13977492664505 19.053600000000003, -100.13388595389931 19.057000000000002))')) 
+        WHERE ST_3DIntersects(location,(select hexagon_z from extruded_hexgrid h where hexagon_id = 1120 and fl_down = 25 and fl_up = 27)) 
+), pointGroup as (
+		SELECT 
+		   min(captureTime) AS startTime, 
+           max(CaptureTime) AS endTime, 
+           array_agg(location) AS geom_array,
+           count(*) as n_points,
+           count(CASE WHEN turning = TRUE THEN 1 END) as n_turning,
+           grp
+		from pointsInside
+		GROUP BY grp
+), crossings as (
+		select
+			1.0 * n_turning / n_points as turning_ratio,
+			startTime, 
+		    endTime, 
+		    ST_MakeLine(geom_array) AS line,
+		    endTime - startTime as duration,
+		    ST_Z(st_startpoint( ST_MakeLine(geom_array))) as alt_entry,
+		    ST_Z(st_endpoint(( ST_MakeLine(geom_array)))) as alt_exit,
+		    (select hexagon from hexgrid h where hexagon_id = 1120) as hex
+		from pointGroup
+), crossings_with_deltas as (
+	  	select 
+		    *,
+			alt_exit - alt_entry as alt_gain
+		from crossings
 )
+select
+	*,
+	alt_gain / duration as vertical_speed
+from
+	crossings_with_deltas
+where duration > 100 and alt_gain > 0
+
 select *
-from pointsInside
+from extruded_hexgrid eh 
+where hexagon_id = 1120
 
-
-
+select * from extruded_hexgrid h where hexagon_id = 1120 
